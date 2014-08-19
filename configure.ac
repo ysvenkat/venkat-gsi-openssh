@@ -4354,24 +4354,19 @@ AC_ARG_WITH([kerberos5],
 			blibpath="$blibpath:${KRB5ROOT}/lib"
 		fi
 
-		AC_CHECK_HEADERS([gssapi.h gssapi/gssapi.h])
+		AC_CHECK_HEADERS([gssapi.h gssapi/gssapi.h gssapi/gssapi_ext.h])
 		AC_CHECK_HEADERS([gssapi_krb5.h gssapi/gssapi_krb5.h])
 		AC_CHECK_HEADERS([gssapi_generic.h gssapi/gssapi_generic.h])
 
 		AC_SEARCH_LIBS([k_hasafs], [kafs], [AC_DEFINE([USE_AFS], [1],
 			[Define this if you want to use libkafs' AFS support])])
+		AC_CHECK_FUNCS( gss_localname gss_userok)
 
 		AC_CHECK_DECLS([GSS_C_NT_HOSTBASED_SERVICE], [], [], [[
 #ifdef HAVE_GSSAPI_H
 # include <gssapi.h>
 #elif defined(HAVE_GSSAPI_GSSAPI_H)
 # include <gssapi/gssapi.h>
-#endif
-
-#ifdef HAVE_GSSAPI_GENERIC_H
-# include <gssapi_generic.h>
-#elif defined(HAVE_GSSAPI_GSSAPI_GENERIC_H)
-# include <gssapi/gssapi_generic.h>
 #endif
 		]])
 		saved_LIBS="$LIBS"
