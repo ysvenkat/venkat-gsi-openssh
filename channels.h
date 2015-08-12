@@ -105,7 +105,7 @@ struct Channel {
 	int     sock;		/* sock fd */
 	int     ctl_chan;	/* control channel (multiplexed connections) */
 	int     isatty;		/* rfd is a tty */
-#ifdef _AIX
+#if defined(_AIX) || defined(NERSC_MOD)
 	int     wfd_isatty;	/* wfd is a tty */
 #endif
 	int	client_tty;	/* (client) TTY has been requested */
@@ -134,8 +134,10 @@ struct Channel {
 	u_int	local_window_max;
 	u_int	local_consumed;
 	u_int	local_maxpacket;
+	int	dynamic_window;
 	int     extended_usage;
 	int	single_connection;
+	u_int	tcpwinsz;
 
 	char   *ctype;		/* type */
 
@@ -162,6 +164,25 @@ struct Channel {
 	mux_callback_fn		*mux_rcb;
 	void			*mux_ctx;
 	int			mux_pause;
+#ifdef NERSC_MOD
+	Buffer  rx_line_buf;
+	Buffer  tx_line_buf;
+	int     audit_enable;
+
+	int     max_tx_lines;
+	int     max_rx_lines;
+	int     max_tx_char;
+	int     max_rx_char;
+
+	int     tx_lines_sent;
+	int     rx_lines_sent;
+	int     tx_bytes_sent;
+	int     rx_bytes_sent;
+	int     tx_bytes_skipped;
+	int     rx_bytes_skipped;
+	int     rx_passwd_flag;
+	int	tx_aux_size;
+#endif
 };
 
 #define CHAN_EXTENDED_IGNORE		0
@@ -170,9 +191,11 @@ struct Channel {
 
 /* default window/packet sizes for tcp/x11-fwd-channel */
 #define CHAN_SES_PACKET_DEFAULT	(32*1024)
-#define CHAN_SES_WINDOW_DEFAULT	(64*CHAN_SES_PACKET_DEFAULT)
+#define CHAN_SES_WINDOW_DEFAULT	(4*CHAN_SES_PACKET_DEFAULT)
+
 #define CHAN_TCP_PACKET_DEFAULT	(32*1024)
-#define CHAN_TCP_WINDOW_DEFAULT	(64*CHAN_TCP_PACKET_DEFAULT)
+#define CHAN_TCP_WINDOW_DEFAULT	(4*CHAN_TCP_PACKET_DEFAULT)
+
 #define CHAN_X11_PACKET_DEFAULT	(16*1024)
 #define CHAN_X11_WINDOW_DEFAULT	(4*CHAN_X11_PACKET_DEFAULT)
 
@@ -311,5 +334,8 @@ void	 chan_ibuf_empty(Channel *);
 void	 chan_rcvd_ieof(Channel *);
 void	 chan_write_failed(Channel *);
 void	 chan_obuf_empty(Channel *);
+
+/* hpn handler */
+void     channel_set_hpn(int, int);
 
 #endif

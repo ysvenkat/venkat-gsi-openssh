@@ -2228,6 +2228,14 @@ ssh_packet_send_ignore(struct ssh *ssh, int nbytes)
 	}
 }
 
+/* this supports the forced rekeying required for the NONE cipher */
+int rekey_requested = 0;
+void
+ssh_packet_request_rekeying(void)
+{
+	rekey_requested = 1;
+}
+
 #define MAX_PACKETS	(1U<<31)
 int
 ssh_packet_need_rekeying(struct ssh *ssh)
@@ -2236,6 +2244,11 @@ ssh_packet_need_rekeying(struct ssh *ssh)
 
 	if (ssh->compat & SSH_BUG_NOREKEY)
 		return 0;
+        if (rekey_requested == 1)
+	{
+               rekey_requested = 0;
+               return 1;
+        }
 	return
 	    (state->p_send.packets > MAX_PACKETS) ||
 	    (state->p_read.packets > MAX_PACKETS) ||
@@ -2245,6 +2258,12 @@ ssh_packet_need_rekeying(struct ssh *ssh)
 	        (state->p_read.blocks > state->max_blocks_in)) ||
 	    (state->rekey_interval != 0 && state->rekey_time +
 		 state->rekey_interval <= monotime());
+}
+
+int
+ssh_packet_authentication_state(struct ssh *ssh)
+{
+	return(ssh->state->after_authentication);
 }
 
 void
@@ -2288,6 +2307,18 @@ void *
 ssh_packet_get_output(struct ssh *ssh)
 {
 	return (void *)ssh->state->output;
+}
+
+void *
+packet_get_receive_context(struct ssh *ssh)
+{
+    return (void*)&(ssh->state->receive_context);
+}
+
+void *
+packet_get_send_context(struct ssh *ssh)
+{
+    return (void*)&(ssh->state->send_context);
 }
 
 /* XXX TODO update roaming to new API (does not work anyway) */

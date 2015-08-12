@@ -155,6 +155,12 @@ void	 ssh_packet_restore_state(struct ssh *, struct ssh *);
 void	*ssh_packet_get_input(struct ssh *);
 void	*ssh_packet_get_output(struct ssh *);
 
+/* HPN */
+void*	packet_get_receive_context(struct ssh *);
+void*	packet_get_send_context(struct ssh *);
+void	ssh_packet_request_rekeying(void);
+int		ssh_packet_authentication_state(struct ssh *);
+
 /* new API */
 int	sshpkt_start(struct ssh *ssh, u_char type);
 int	sshpkt_send(struct ssh *ssh);

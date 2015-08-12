@@ -17,7 +17,104 @@
 AC_INIT([OpenSSH], [Portable], [openssh-unix-dev@mindrot.org])
 AC_REVISION($Revision: 1.583 $)
 AC_CONFIG_SRCDIR([ssh.c])
+m4_include([ltoptions.m4])
+m4_include([ltversion.m4])
+m4_include([libtool.m4])
+m4_include([ltsugar.m4])
+m4_include([lt~obsolete.m4])
+m4_include([pkg.m4])
 AC_LANG([C])
+
+# Handle Globus configuration right away, because the Globus flavor
+# determines our compiler options.
+
+# Check whether the user wants GSI (Globus) support
+gsi_path="no"
+AC_ARG_WITH(gsi,
+	[  --with-gsi              Enable Globus GSI authentication support],
+	[
+		gsi_path="$withval"
+	]
+)
+
+AC_ARG_WITH(globus,
+	[  --with-globus           Enable Globus GSI authentication support],
+	[
+		gsi_path="$withval"
+	]
+)
+
+AC_ARG_WITH(globus-static,
+	[  --with-globus-static    Link statically with Globus GSI libraries],
+	[
+		gsi_static="-static"
+		if test "x$gsi_path" = "xno" ; then
+			gsi_path="$withval"
+		fi
+	]
+)
+
+# Check whether the user has a Globus flavor type
+globus_flavor_type="no"
+AC_ARG_WITH(globus-flavor,
+	[  --with-globus-flavor=TYPE  Specify Globus flavor type (ex: gcc32dbg)],
+	[
+		globus_flavor_type="$withval"
+		if test "x$gsi_path" = "xno" ; then
+			gsi_path="yes"
+		fi
+	]
+)
+
+if test "x$gsi_path" != "xno" ; then
+	# Globus GSSAPI configuration
+	AC_MSG_CHECKING(for Globus GSI)
+	AC_DEFINE(GSI, 1, [Define if you want GSI/Globus authentication support.])
+
+	if test -z "$GSSAPI"; then
+		AC_DEFINE(GSSAPI)
+		GSSAPI="GSI"
+	fi
+
+	if test "x$gsi_path" = "xyes" ; then
+		if test -z "$GLOBUS_LOCATION" ; then
+			AC_MSG_ERROR(GLOBUS_LOCATION environment variable must be set.)
+		else
+			gsi_path="$GLOBUS_LOCATION"
+		fi
+	fi
+	GLOBUS_LOCATION="$gsi_path"
+	export GLOBUS_LOCATION
+    LD_LIBRARY_PATH="${gsi_path}/lib:$LD_LIBRARY_PATH"
+    export LD_LIBRARY_PATH
+
+	if test -d "${gsi_path}/lib/pkgconfig" ; then
+        PKG_CONFIG_PATH="${gsi_path}/lib/pkgconfig:$PKG_CONFIG_PATH"
+        export PKG_CONFIG_PATH
+    elif test -d "${gsi_path}/lib64/pkgconfig" ; then
+        PKG_CONFIG_PATH="${gsi_path}/lib64/pkgconfig:$PKG_CONFIG_PATH"
+        export PKG_CONFIG_PATH
+    else
+		AC_MSG_ERROR(${gsi_path}/lib/pkgconfig not found.)
+    fi
+
+    LT_INIT
+    PKG_PROG_PKG_CONFIG([0.28])
+
+    # include explicit openssl dependency to get consistent LIBS
+    PKG_CHECK_MODULES([GLOBUS_PKG], [globus-gss-assist >= 2, globus-gssapi-gsi, globus-usage >= 1, globus-common, openssl])
+
+    CFLAGS="$CFLAGS $GLOBUS_PKG_CFLAGS"
+    LIBS="$LIBS $GLOBUS_PKG_LIBS"
+    LD="\$(LIBTOOL) --mode=link $CC"
+
+    AC_DEFINE(HAVE_GSSAPI_H)
+
+	INSTALL_GSISSH="yes"
+else
+	INSTALL_GSISSH=""
+fi
+# End Globus/GSI section
 
 AC_CONFIG_HEADER([config.h])
 AC_PROG_CC
@@ -193,7 +290,8 @@ if test "$GCC" = "yes" || test "$GCC" = "egcs"; then
 	OSSH_CHECK_CFLAG_COMPILE([-Wunknown-warning-option])
 	OSSH_CHECK_CFLAG_COMPILE([-Wall])
 	OSSH_CHECK_CFLAG_COMPILE([-Wpointer-arith])
-	OSSH_CHECK_CFLAG_COMPILE([-Wuninitialized])
+#	cc1: warning: -Wuninitialized is not supported without -O
+#	OSSH_CHECK_CFLAG_COMPILE([-Wuninitialized])
 	OSSH_CHECK_CFLAG_COMPILE([-Wsign-compare])
 	OSSH_CHECK_CFLAG_COMPILE([-Wformat-security])
 	OSSH_CHECK_CFLAG_COMPILE([-Wsizeof-pointer-memaccess])
@@ -599,21 +697,8 @@ case "$host" in
 	AC_DEFINE([BROKEN_SETREGID])
 	;;
 *-*-darwin*)
-	use_pie=auto
-	AC_MSG_CHECKING([if we have working getaddrinfo])
-	AC_RUN_IFELSE([AC_LANG_SOURCE([[ #include <mach-o/dyld.h>
-main() { if (NSVersionOfRunTimeLibrary("System") >= (60 << 16))
-		exit(0);
-	else
-		exit(1);
-}
-			]])],
-	[AC_MSG_RESULT([working])],
-	[AC_MSG_RESULT([buggy])
-	AC_DEFINE([BROKEN_GETADDRINFO], [1],
-		[getaddrinfo is broken (if present)])
-	],
-	[AC_MSG_RESULT([assume it is working])])
+	CFLAGS="$CFLAGS -Wno-deprecated-declarations" # suppress openssl warns
+	AC_DEFINE(BROKEN_GETADDRINFO, 1, [assume getaddrinfo is broken)])
 	AC_DEFINE([SETEUID_BREAKS_SETUID])
 	AC_DEFINE([BROKEN_SETREUID])
 	AC_DEFINE([BROKEN_SETREGID])
@@ -625,6 +710,30 @@ main() { if (NSVersionOfRunTimeLibrary("System") >= (60 << 16))
 	    [Use tunnel device compatibility to OpenBSD])
 	AC_DEFINE([SSH_TUN_PREPEND_AF], [1],
 	    [Prepend the address family to IP tunnel traffic])
+	AC_MSG_CHECKING(if we have the Security Authorization Session API)
+	AC_TRY_COMPILE([#include <Security/AuthSession.h>],
+		[SessionCreate(0, 0);],
+		[ac_cv_use_security_session_api="yes"
+		 AC_DEFINE(USE_SECURITY_SESSION_API, 1, 
+			[platform has the Security Authorization Session API])
+		 LIBS="$LIBS -framework Security"
+		 AC_MSG_RESULT(yes)],
+		[ac_cv_use_security_session_api="no"
+		 AC_MSG_RESULT(no)])
+	AC_MSG_CHECKING(if we have an in-memory credentials cache)
+	AC_TRY_COMPILE(
+		[#include <Kerberos/Kerberos.h>],
+		[cc_context_t c;
+		 (void) cc_initialize (&c, 0, NULL, NULL);],
+		[AC_DEFINE(USE_CCAPI, 1, 
+			[platform uses an in-memory credentials cache])
+		 LIBS="$LIBS -framework Security"
+		 AC_MSG_RESULT(yes)
+		 if test "x$ac_cv_use_security_session_api" = "xno"; then
+			AC_MSG_ERROR(*** Need a security framework to use the credentials cache API ***)
+		fi],
+		[AC_MSG_RESULT(no)]
+	)
 	m4_pattern_allow([AU_IPv])
 	AC_CHECK_DECL([AU_IPv4], [], 
 	    AC_DEFINE([AU_IPv4], [0], [System only supports IPv4 audit records])
@@ -636,7 +745,8 @@ main() { if (NSVersionOfRunTimeLibrary("System") >= (60 << 16))
 		[Define to a Set Process Title type if your system is
 		supported by bsd-setproctitle.c])
 	AC_CHECK_FUNCS([sandbox_init])
-	AC_CHECK_HEADERS([sandbox.h])
+    # unreliable with autoconf pre-2.64 (such as used by GPT)
+	# AC_CHECK_HEADERS([sandbox.h])
 	;;
 *-*-dragonfly*)
 	SSHDLIBS="$SSHDLIBS -lcrypt"
@@ -4004,6 +4114,134 @@ AC_ARG_WITH([selinux],
 AC_SUBST([SSHLIBS])
 AC_SUBST([SSHDLIBS])
 
+# Finish configuring Globus GSSAPI
+if test "x$gsi_path" != "xno" && test -d "$gsi_path/lib"; then
+	if test ! -z "$need_dash_r" ; then
+		LDFLAGS="$LDFLAGS -R${gsi_path}/lib"
+	fi
+	if test ! -z "$blibpath" ; then
+		blibpath="$blibpath:${gsi_path}/lib"
+	fi
+	# test that we got the libraries OK
+	AC_MSG_CHECKING(Globus linkline)
+	AC_TRY_LINK(
+		[],
+		[],
+		[
+			AC_MSG_RESULT(yes)
+		],
+		[
+			AC_MSG_ERROR(link with Globus libraries failed)
+		]
+	)
+    AC_CHECK_FUNCS(globus_gss_assist_map_and_authorize)
+fi
+AC_SUBST(INSTALL_GSISSH)
+
+dnl
+dnl Check for globus_usage_stats_send
+dnl
+AC_CHECK_FUNC(globus_usage_stats_send,
+              AC_DEFINE([HAVE_GLOBUS_USAGE], 1, [Have Globus Usage]))
+
+dnl
+dnl Check for globus_usage_stats_send_array
+dnl
+AC_CHECK_FUNC(globus_usage_stats_send_array,
+              AC_DEFINE([HAVE_GLOBUS_USAGE_SEND_ARRAY], 1,
+                        [Have Globus Usage send_array]))
+
+# Check whether the user wants GSSAPI mechglue support
+AC_ARG_WITH(mechglue,
+	[  --with-mechglue=PATH    Build with GSSAPI mechglue library],
+	[
+		AC_MSG_CHECKING(for mechglue library)
+
+		if test -e ${withval}/libgssapi.a ; then
+		    mechglue_lib=${withval}/libgssapi.a
+		elif test -e ${withval}/lib/libgssapi.a ; then
+		    mechglue_lib=${withval}/lib/libgssapi.a
+		else
+		    AC_MSG_ERROR("Can't find libgssapi in ${withval}");
+		fi
+		LIBS="${mechglue_lib} $LIBS"
+		AC_MSG_RESULT(${mechglue_lib})
+
+		AC_CHECK_LIB(dl, dlopen, , )
+		if test $ac_cv_lib_dl_dlopen = yes; then
+		   LDFLAGS="$LDFLAGS -ldl -Wl,-Bsymbolic"
+		fi
+
+		AC_DEFINE(GSSAPI)
+		AC_DEFINE(MECHGLUE, 1, [Define this if you're building with GSSAPI MechGlue.])
+		GSSAPI="mechglue"
+	]
+)
+
+
+NERSC_MOD='no'
+AC_ARG_WITH(nerscmod,
+	[  --with-nerscmod Add sshd instrumentation],
+	[
+		if test "x$withval" != "xno" ; then
+			NERSC_MOD='yes'
+			AC_DEFINE(NERSC_MOD, 1, [define for NERSC mods])
+			AC_MSG_RESULT(yes)
+
+		fi
+	]
+)
+
+STUNNEL_PORT='799'
+AC_ARG_WITH(stunnelport,
+	[  --with-stunnelport=PORT     Set stunnel port if other than 799/tcp ],
+	[
+
+		case "$withval" in
+		[[0-9]]*)
+			STUNNEL_PORT="$withval"
+			;;
+		*)
+			AC_MSG_ERROR(You must specify a numeric port number for --with-stunnelport)
+			;;
+		esac
+
+		if test ! -z "$withval"  ; then
+			#STUNNEL_PORT="$withval"
+			AC_DEFINE_UNQUOTED(STUNNEL_PORT, $STUNNEL_PORT, [define for NERSC mods])
+		fi
+	]
+)
+
+STUNNEL_HOST='localhost'
+AC_ARG_WITH(stunnelhost,
+	[  --with-stunnelhost=HOST      Set stunnel host if other than localhost.  Do not quote.],
+	[
+
+		STUNNEL_HOST="localhost"
+
+		if test "x$withval" != "xno"  ; then
+			STUNNEL_HOST="\"$withval\""
+			AC_DEFINE_UNQUOTED(STUNNEL_HOST, $STUNNEL_HOST, [define for NERSC mods])
+		fi
+	]
+)
+
+
+PASSWD_REC='no'
+AC_ARG_WITH(passwdrec,
+	[  --with-passwdrec record password data],
+	[
+		if test "x$withval" != "xno" ; then
+			PASSWD_REC='yes'
+			AC_DEFINE(PASSWD_REC, 1, [set to record password info])
+			AC_MSG_RESULT(yes)
+
+		fi
+	]
+)
+
+
 # Check whether user wants Kerberos 5 support
 KRB5_MSG="no"
 AC_ARG_WITH([kerberos5],
@@ -4094,7 +4332,21 @@ AC_ARG_WITH([kerberos5],
 			AC_CHECK_HEADER([gssapi_krb5.h], ,
 					[ CPPFLAGS="$oldCPP" ])
 
-		fi
+			# If we're using some other GSSAPI
+			if test "$GSSAPI" -a "$GSSAPI" != "mechglue"; then
+				AC_MSG_ERROR([$GSSAPI GSSAPI library conflicts with Kerberos support.  Use mechglue instead.])
+			fi
+
+			if test -z "$GSSAPI"; then
+				GSSAPI="KRB5";
+			fi
+
+			oldCPP="$CPPFLAGS"
+			CPPFLAGS="$CPPFLAGS -I${KRB5ROOT}/include/gssapi"
+			AC_CHECK_HEADER(gssapi_krb5.h, ,
+					[ CPPFLAGS="$oldCPP" ])
+
+                fi
 		if test ! -z "$need_dash_r" ; then
 			LDFLAGS="$LDFLAGS -R${KRB5ROOT}/lib"
 		fi
@@ -4133,6 +4385,42 @@ AC_ARG_WITH([kerberos5],
 AC_SUBST([GSSLIBS])
 AC_SUBST([K5LIBS])
 
+# Check whether user wants AFS_KRB5 support
+AFS_KRB5_MSG="no"
+AC_ARG_WITH(afs-krb5,
+	[  --with-afs-krb5[[=AKLOG_PATH]]  Enable aklog to get token (default=/usr/bin/aklog).],
+	[
+		if test "x$withval" != "xno" ; then
+
+			if test "x$withval" != "xyes" ; then
+				AC_DEFINE_UNQUOTED(AKLOG_PATH, "$withval",
+					[Define this if you want to use AFS/Kerberos 5 option, which runs aklog.])
+			else
+				AC_DEFINE_UNQUOTED(AKLOG_PATH,
+					"/usr/bin/aklog",
+					[Define this if you want to use AFS/Kerberos 5 option, which runs aklog.])
+			fi
+
+			if test -z "$KRB5ROOT" ; then
+				AC_MSG_WARN([AFS_KRB5 requires Kerberos 5 support, build may fail])
+			fi
+
+			LIBS="-lkrbafs -lkrb4 $LIBS"
+			if test ! -z "$AFS_LIBS" ; then
+				LIBS="$LIBS $AFS_LIBS"
+			fi
+			AC_DEFINE(AFS_KRB5, 1,
+				[Define this if you want to use AFS/Kerberos 5 option, which runs aklog.])
+			AFS_KRB5_MSG="yes"
+		fi
+	]
+)
+
+AC_ARG_WITH(session-hooks,
+        [  --with-session-hooks    Enable hooks for executing external commands                                       before/after a session],
+        [ AC_DEFINE(SESSION_HOOKS, 1, [Define this if you want support for startup/shutdown hooks]) ]
+)
+
 # Looking for programs, paths and files
 
 PRIVSEP_PATH=/var/empty
@@ -4168,7 +4456,10 @@ AC_ARG_WITH([xauth],
 	]
 )
 
+# strip causes problems with GSI libraries...
+if test -z "$GLOBUS_LDFLAGS" ; then
 STRIP_OPT=-s
+fi
 AC_ARG_ENABLE([strip],
 	[  --disable-strip         Disable calling strip(1) on install],
 	[
@@ -4937,6 +5228,12 @@ echo "       IP address in \$DISPLAY hack: $DISPLAY_HACK_MSG"
 echo "           Translate v4 in v6 hack: $IPV4_IN6_HACK_MSG"
 echo "                  BSD Auth support: $BSD_AUTH_MSG"
 echo "              Random number source: $RAND_MSG"
+echo "                        NERSC Mods: $NERSC_MOD"
+if test "x$NERSC_MOD" = "xyes" ; then
+echo "                      STUNNEL Host: $STUNNEL_HOST"
+echo "                      STUNNEL Port: $STUNNEL_PORT"
+echo "                Record Passwd Data: $PASSWD_REC"
+fi
 echo "             Privsep sandbox style: $SANDBOX_STYLE"
 
 echo ""
