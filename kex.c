@@ -740,6 +740,7 @@ kex_choose_conf(struct ssh *ssh)
 			kex->failed_choice = peer[ncomp];
 			peer[ncomp] = NULL;
 			goto out;
+		}
         debug("REQUESTED ENC.NAME is '%s'", newkeys->enc.name);
         if (strcmp(newkeys->enc.name, "none") == 0) {
             debug("Requesting NONE. Authflag is %d", auth_flag);
