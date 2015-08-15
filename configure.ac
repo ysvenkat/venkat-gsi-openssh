@@ -4416,8 +4416,6 @@ AC_ARG_WITH([kerberos5],
 
 		AC_SEARCH_LIBS([k_hasafs], [kafs], [AC_DEFINE([USE_AFS], [1],
 			[Define this if you want to use libkafs' AFS support])])
-		AC_CHECK_FUNCS([gss_localname gss_userok])
-		AC_CHECK_FUNCS([gss_indicate_mechs_by_attrs])
 
 		AC_CHECK_DECLS([GSS_C_NT_HOSTBASED_SERVICE], [], [], [[
 #ifdef HAVE_GSSAPI_H
@@ -4427,8 +4425,10 @@ AC_ARG_WITH([kerberos5],
 #endif
 		]])
 		saved_LIBS="$LIBS"
-		LIBS="$LIBS $K5LIBS"
+		LIBS="$LIBS $K5LIBS $GSSLIBS"
 		AC_CHECK_FUNCS([krb5_cc_new_unique krb5_get_error_message krb5_free_error_message])
+		AC_CHECK_FUNCS([gss_localname gss_userok])
+		AC_CHECK_FUNCS([gss_indicate_mechs_by_attrs])
 		LIBS="$saved_LIBS"
 
 	fi
