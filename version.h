@@ -24,7 +24,7 @@
 #define SSH_AUDITING	""
 #endif /* NERSC_MOD */
 
-#define NCSA_VERSION	" GSI_GSSAPI_20150813"
+#define NCSA_VERSION	" GSI_GSSAPI_20150821"
 #define SSH_HPN			"-hpn14"
 
 #define SSH_VERSION	"OpenSSH_7.1"
