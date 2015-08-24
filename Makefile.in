@@ -86,6 +86,7 @@ LIBSSH_OBJS=${LIBOPENSSH_OBJS} \
 	readpass.o rsa.o ttymodes.o xmalloc.o addrmatch.o \
 	atomicio.o key.o dispatch.o mac.o uidswap.o uuencode.o misc.o \
 	monitor_fdpass.o rijndael.o ssh-dss.o ssh-ecdsa.o ssh-rsa.o dh.o \
+	pathnames.o \
 	kexgssc.o \
 	nersc.o modp_burl.o \
 	msg.o progressmeter.o dns.o entropy.o gss-genr.o umac.o umac128.o \
