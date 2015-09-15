@@ -736,11 +736,20 @@ kex_choose_conf(struct ssh *ssh)
 
 #ifdef NERSC_MOD
 		if ( ctos ) {
-			const char def_mac_name[] = "<implicit>";
-			char* t1buf = encode_string(newkeys->enc.name, strlen(newkeys->enc.name));
-			char* t2buf = ((authlen != 0 || !newkeys->mac.name) ? (encode_string(def_mac_name, sizeof(def_mac_name)-1)) : (encode_string(newkeys->mac.name, strlen(newkeys->mac.name))));
-			char* t3buf = encode_string(newkeys->comp.name, strlen(newkeys->comp.name));
-			char* t4buf = encode_string(kex->client_version_string, strlen(kex->client_version_string));
+
+                        const char def_enc_name[] = "<implicit>";
+                        const char def_mac_name[] = "<implicit>";
+                        const char def_comp_name[] = "<implicit>";
+                        const char def_vers_string[] = "<implicit>";
+
+                        char* t1buf = ((authlen != 0 || !newkeys->enc.name) ? (encode_string(def_enc_name, sizeof(def_enc_name)-1)) : (encode_string(newkeys->enc.name, strlen(newkeys->enc.name))));
+                        char* t2buf = ((authlen != 0 || !newkeys->mac.name) ? (encode_string(def_mac_name, sizeof(def_mac_name)-1)) : (encode_string(newkeys->mac.name, strlen(newkeys->mac.name))));
+                        char* t3buf = ((authlen != 0 || !newkeys->comp.name) ? (encode_string(def_comp_name, sizeof(def_comp_name)-1)) : (encode_string(newkeys->comp.name, strlen(newkeys->comp.name))));
+
+			/* t4buf is not derived from authlen directly, but in  */
+			/*  the event that that value is borked, play it safe  */
+			/*  and bail on this as well cause paranoid ...        */
+                        char* t4buf = ((authlen != 0 || !kex->client_version_string) ? (encode_string(def_vers_string, sizeof(def_vers_string)-1)) : (encode_string(kex->client_version_string, strlen(kex->client_version_string))));
 
 			s_audit("session_key_exchange", "count=%i uristring=%s_%s_%s_%s",
 			client_session_id, t4buf, t1buf, t2buf, t3buf);
