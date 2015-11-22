@@ -210,6 +210,8 @@ static int hpn_buffer_size = 2 * 1024 * 1024;
 
 /* -- channel core */
 
+
+
 Channel *
 channel_by_id(int id)
 {
@@ -283,7 +285,7 @@ channel_register_fds(Channel *c, int rfd, int wfd, int efd,
 
 	if ((c->isatty = is_tty) != 0)
 		debug2("channel %d: rfd %d isatty", c->self, c->rfd);
-#ifdef _AIX
+#if defined(_AIX) || defined(NERSC_MOD)
 	/* XXX: Later AIX versions can't push as much data to tty */
 	c->wfd_isatty = is_tty || isatty(c->wfd);
 #endif
@@ -3224,7 +3226,6 @@ channel_set_af(int af)
 {
 	IPv4or6 = af;
 }
-
 
 /*
  * Determine whether or not a port forward listens to loopback, the

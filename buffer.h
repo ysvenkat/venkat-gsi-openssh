@@ -23,6 +23,9 @@
 
 #include "sshbuf.h"
 
+/* move the following to a more appropriate place and name */
+#define BUFFER_MAX_LEN_HPN          0x4000000  /* 64MB */
+
 typedef struct sshbuf Buffer;
 
 #define buffer_init(b)		sshbuf_init(b)
