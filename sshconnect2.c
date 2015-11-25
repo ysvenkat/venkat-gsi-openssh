@@ -87,11 +87,6 @@ struct kex *xxx_kex;
 
 extern int tty_flag;
 
-/* tty_flag is set in ssh.c. use this in ssh_userauth2 */
-/* if it is set then prevent the switch to the null cipher */
-
-extern int tty_flag;
-
 /*
  * SSH2 key exchange
  */

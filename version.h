@@ -18,13 +18,7 @@
 #define MGLUE_VERSION	""
 #endif
 
-#ifdef NERSC_MOD
-#define SSH_AUDITING	"NMOD_3.12"
-#else
-#define SSH_AUDITING	""
-#endif /* NERSC_MOD */
-
-#define NCSA_VERSION	" GSI_GSSAPI_20150821"
+#define NCSA_VERSION	" GSI_GSSAPI_20151124"
 
 #define SSH_VERSION	"OpenSSH_7.1"
 
@@ -36,6 +30,8 @@
 #undef SSH_RELEASE
 #define SSH_AUDITING	"NMOD_3.17"
 #define SSH_RELEASE	SSH_VERSION SSH_PORTABLE SSH_HPN SSH_AUDITING
+#else
+#define SSH_AUDITING	""
 #endif /* NERSC_MOD */
 
 #undef SSH_RELEASE

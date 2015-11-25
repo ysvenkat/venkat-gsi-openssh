@@ -255,7 +255,7 @@ input_userauth_request(int type, u_int32_t seq, void *ctxt)
 	debug("userauth-request for user %s service %s method %s",
 	      user[0] ? user : "<implicit>", service, method);
 	if (!log_flag) {
-		logit("SSH: Server;Ltype: Authname;Remote: %s-%d;Name: %s", 
+		logit("SSH: Server;Ltype: Authname;Remote: %s-%d;Name: %s",
 		      get_remote_ipaddr(), get_remote_port(),
               user[0] ? user : "<implicit>");
 		log_flag = 1;

@@ -2781,12 +2781,6 @@ do_ssh2_kex(void)
 	myproposal[PROPOSAL_MAC_ALGS_CTOS] =
 	    myproposal[PROPOSAL_MAC_ALGS_STOC] = options.macs;
 
-    if (options.none_enabled == 1) {
-        debug ("WARNING: None cipher enabled");
-        myproposal[PROPOSAL_ENC_ALGS_CTOS] =
-        myproposal[PROPOSAL_ENC_ALGS_STOC] = KEX_ENCRYPT_INCLUDE_NONE;
-	}    
-
 	if (options.compression == COMP_NONE) {
 		myproposal[PROPOSAL_COMP_ALGS_CTOS] =
 		myproposal[PROPOSAL_COMP_ALGS_STOC] = "none";
