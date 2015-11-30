@@ -1921,9 +1921,6 @@ ssh_session2_open(void)
 {
 	Channel *c;
 	int window, packetmax, in, out, err;
-	int sock;
-	int socksize;
-	int socksizelen = sizeof(int);
 
 	if (stdin_null_flag) {
 		in = open(_PATH_DEVNULL, O_RDONLY);
