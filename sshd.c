@@ -2780,7 +2780,7 @@ do_ssh2_kex(void)
 	myproposal[PROPOSAL_KEX_ALGS] = compat_kex_proposal(
             options.kex_algorithms);
 	myproposal[PROPOSAL_ENC_ALGS_CTOS] = compat_cipher_proposal(
-	    ciphers);
+	    options.ciphers);
 	myproposal[PROPOSAL_ENC_ALGS_STOC] = compat_cipher_proposal(
 	    options.ciphers);
         myproposal[PROPOSAL_MAC_ALGS_CTOS] =
