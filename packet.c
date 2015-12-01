@@ -269,7 +269,7 @@ struct ssh *
 ssh_packet_set_connection(struct ssh *ssh, int fd_in, int fd_out)
 {
 	struct session_state *state;
-	const struct sshcipher *none = cipher_by_name("none");
+	struct sshcipher *none = cipher_by_name("none");
 	int r;
 
 	if (none == NULL) {
@@ -2231,7 +2231,7 @@ ssh_packet_send_ignore(struct ssh *ssh, int nbytes)
 /* this supports the forced rekeying required for the NONE cipher */
 int rekey_requested = 0;
 void
-ssh_packet_request_rekeying(void)
+packet_request_rekeying(void)
 {
 	rekey_requested = 1;
 }
@@ -2244,11 +2244,10 @@ ssh_packet_need_rekeying(struct ssh *ssh)
 
 	if (ssh->compat & SSH_BUG_NOREKEY)
 		return 0;
-        if (rekey_requested == 1)
-	{
-               rekey_requested = 0;
-               return 1;
-        }
+	if (rekey_requested == 1) {
+		rekey_requested = 0;
+		return 1;
+	}
 	return
 	    (state->p_send.packets > MAX_PACKETS) ||
 	    (state->p_read.packets > MAX_PACKETS) ||
@@ -2261,9 +2260,11 @@ ssh_packet_need_rekeying(struct ssh *ssh)
 }
 
 int
-ssh_packet_authentication_state(struct ssh *ssh)
+packet_authentication_state(const struct ssh *ssh)
 {
-	return(ssh->state->after_authentication);
+	struct session_state *state = ssh->state;
+
+	return state->after_authentication;
 }
 
 void
@@ -2322,6 +2323,19 @@ packet_get_send_context(struct ssh *ssh)
 }
 
 /* XXX TODO update roaming to new API (does not work anyway) */
+
+void *
+ssh_packet_get_receive_context(struct ssh *ssh)
+{
+	return (void *)&ssh->state->receive_context;
+}
+
+void *
+ssh_packet_get_send_context(struct ssh *ssh)
+{
+	return (void *)&ssh->state->send_context;
+}
+
 /*
  * Save the state for the real connection, and use a separate state when
  * resuming a suspended connection.

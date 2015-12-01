@@ -227,8 +227,6 @@ static char* get_server_id()
 	 * If this is the first reference to this variable, it may be blank and 
 	 *   we can try filing it in via the values set up during the sshd run.
 	 */
-	const char* env = NULL;
-	size_t len = 0;
 	char *cp = NULL;
 	char *p = NULL;
 	long hid;
@@ -245,11 +243,7 @@ static char* get_server_id()
 		 */
 		if ( n_port[0] == 'X' ) {
 
-			if ((env = getenv("SSH_CONNECTION")) != NULL) {
-
-				len = strlen(env);
-				cp = (char*) xmalloc(len + 1);
-				strcpy(cp, env);
+			if ((cp = getenv("SSH_CONNECTION")) != NULL) {
 
 				p = strtok(cp," ");			/* src IP */
 				p = strtok(NULL, " ");			/* src port */
@@ -260,8 +254,7 @@ static char* get_server_id()
 				if ( (p = strtok(NULL, " ")) != NULL)	/* dst port */
 					strncpy(n_port,p,NI_MAXHOST-1);
 
-				bzero(cp, len);
-				free(cp);
+				bzero(cp, strlen(cp));
 			}
 			else {
 				/* 

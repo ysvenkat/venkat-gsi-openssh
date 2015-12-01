@@ -5281,11 +5281,11 @@ echo "       IP address in \$DISPLAY hack: $DISPLAY_HACK_MSG"
 echo "           Translate v4 in v6 hack: $IPV4_IN6_HACK_MSG"
 echo "                  BSD Auth support: $BSD_AUTH_MSG"
 echo "              Random number source: $RAND_MSG"
-echo "                        NERSC Mods: $NERSC_MOD"
+echo "              NERSC Mods          : $NERSC_MOD"
 if test "x$NERSC_MOD" = "xyes" ; then
-echo "                      STUNNEL Host: $STUNNEL_HOST"
-echo "                      STUNNEL Port: $STUNNEL_PORT"
-echo "                Record Passwd Data: $PASSWD_REC"
+echo "              STUNNEL Host        : $STUNNEL_HOST"
+echo "              STUNNEL Port        : $STUNNEL_PORT"
+echo "              Record Passwd Data  : $PASSWD_REC"
 fi
 echo "             Privsep sandbox style: $SANDBOX_STYLE"
 

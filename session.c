@@ -399,9 +399,6 @@ do_authenticated1(Authctxt *authctxt)
 				s->auth_proto = NULL;
 				s->auth_data = NULL;
 			}
-#ifdef NERSC_MOD
-			s_audit("session_do_auth_3", "count=%i count=%i", type, success);
-#endif
 			break;
 
 		case SSH_CMSG_AGENT_REQUEST_FORWARDING:
@@ -501,6 +498,7 @@ do_authenticated1(Authctxt *authctxt)
 					packet_disconnect(
 					    "shell execution failed");
 #endif
+
 			}
 			packet_check_eom();
 			session_close(s);

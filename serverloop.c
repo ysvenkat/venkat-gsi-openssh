@@ -531,7 +531,7 @@ process_output(fd_set *writeset)
 	}
 	/* Send any buffered packet data to the client. */
 	if (FD_ISSET(connection_out, writeset))
-		packet_write_poll();
+		stdin_bytes += packet_write_poll();
 }
 
 /*
@@ -849,8 +849,8 @@ void
 server_loop2(Authctxt *authctxt)
 {
 	fd_set *readset = NULL, *writeset = NULL;
-	int rekeying = 0, max_fd;
 	double start_time, total_time;
+	int rekeying = 0, max_fd;
 	u_int nalloc = 0;
 	u_int64_t rekey_timeout_ms = 0;
 
@@ -927,7 +927,7 @@ server_loop2(Authctxt *authctxt)
 	total_time = get_current_time() - start_time;
 	logit("SSH: Server;LType: Throughput;Remote: %s-%d;IN: %lu;OUT: %lu;Duration: %.1f;tPut_in: %.1f;tPut_out: %.1f",
 	      get_remote_ipaddr(), get_remote_port(),
-	      stdin_bytes, fdout_bytes, total_time, stdin_bytes / total_time, 
+	      stdin_bytes, fdout_bytes, total_time, stdin_bytes / total_time,
 	      fdout_bytes / total_time);
 }
 
@@ -1099,10 +1099,12 @@ server_request_tun(void)
 	sock = tun_open(tun, mode);
 	if (sock < 0)
 		goto done;
+
 #ifdef NERSC_MOD
-	s_audit("session_tun_init_3", "count=%i count=%i count=%i", 
+	s_audit("session_tun_init_3", "count=%i count=%i count=%i",
 		client_session_id, c->self, mode);
 #endif
+
 	if (options.hpn_disabled)
 	c = channel_new("tun", SSH_CHANNEL_OPEN, sock, sock, -1,
 	    CHAN_TCP_WINDOW_DEFAULT, CHAN_TCP_PACKET_DEFAULT, 0, "tun", 1);

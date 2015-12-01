@@ -1357,7 +1357,7 @@ server_accept_loop(int *sock_in, int *sock_out, int *newsock, int *config_s)
 				unlink(options.pid_file);
 
 #ifdef NERSC_MOD
-			if (  getnameinfo(ai->ai_addr, ai->ai_addrlen,ntop, sizeof(ntop), strport, 
+			if (  getnameinfo(ai->ai_addr, ai->ai_addrlen,ntop, sizeof(ntop), strport,
 					sizeof(strport),NI_NUMERICHOST|NI_NUMERICSERV) == 0) {
 				s_audit("sshd_exit_3", "addr=%s  port=%s/tcp", ntop, strport);
 			}
@@ -1789,6 +1789,13 @@ main(int ac, char **av)
 		error("Error initializing Globus Usage Metrics, but continuing ...");
 	}
 #endif /* HAVE_GLOBUS_USAGE */
+
+	if (options.none_enabled == 1) {
+		char *old_ciphers = options.ciphers;
+
+		xasprintf(&options.ciphers, "%s,none", old_ciphers);
+		free(old_ciphers);
+	}
 
 	/* challenge-response is implemented via keyboard interactive */
 	if (options.challenge_response_authentication)
@@ -2466,6 +2473,23 @@ main(int ac, char **av)
 
 	/* Start session. */
 
+#ifdef WITH_OPENSSL
+	/* if we are using aes-ctr there can be issues in either a fork or sandbox
+	 * so the initial aes-ctr is defined to point ot the original single process
+	 * evp. After authentication we'll be past the fork and the sandboxed privsep
+	 * so we repoint the define to the multithreaded evp. To start the threads we
+	 * then force a rekey
+	 */
+	struct sshcipher_ctx *ccsend = ssh_packet_get_send_context(active_state);
+
+	/* only rekey if necessary. If we don't do this gcm mode cipher breaks */
+	if (strstr(cipher_return_name(ccsend->cipher), "ctr")) {
+		debug("Single to Multithreaded CTR cipher swap - server request");
+		cipher_reset_multithreaded();
+		packet_request_rekeying();
+	}
+#endif
+
 	do_authenticated(authctxt);
 
 #ifdef NERSC_MOD
@@ -2750,20 +2774,17 @@ do_ssh2_kex(void)
 	struct kex *kex;
 	int r;
 
+        if (options.none_enabled == 1)
+                debug ("WARNING: None cipher enabled"); 
+
 	myproposal[PROPOSAL_KEX_ALGS] = compat_kex_proposal(
-	    options.kex_algorithms);
+            options.kex_algorithms);
 	myproposal[PROPOSAL_ENC_ALGS_CTOS] = compat_cipher_proposal(
 	    options.ciphers);
 	myproposal[PROPOSAL_ENC_ALGS_STOC] = compat_cipher_proposal(
 	    options.ciphers);
-	myproposal[PROPOSAL_MAC_ALGS_CTOS] =
-	    myproposal[PROPOSAL_MAC_ALGS_STOC] = options.macs;
-
-    if (options.none_enabled == 1) {
-        debug ("WARNING: None cipher enabled");
-        myproposal[PROPOSAL_ENC_ALGS_CTOS] =
-        myproposal[PROPOSAL_ENC_ALGS_STOC] = KEX_ENCRYPT_INCLUDE_NONE;
-	}    
+        myproposal[PROPOSAL_MAC_ALGS_CTOS] =
+            myproposal[PROPOSAL_MAC_ALGS_STOC] = options.macs;
 
 	if (options.compression == COMP_NONE) {
 		myproposal[PROPOSAL_COMP_ALGS_CTOS] =

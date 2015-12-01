@@ -210,8 +210,6 @@ static int hpn_buffer_size = 2 * 1024 * 1024;
 
 /* -- channel core */
 
-
-
 Channel *
 channel_by_id(int id)
 {
@@ -285,7 +283,7 @@ channel_register_fds(Channel *c, int rfd, int wfd, int efd,
 
 	if ((c->isatty = is_tty) != 0)
 		debug2("channel %d: rfd %d isatty", c->self, c->rfd);
-#if defined(_AIX) || defined(NERSC_MOD)
+#ifdef _AIX
 	/* XXX: Later AIX versions can't push as much data to tty */
 	c->wfd_isatty = is_tty || isatty(c->wfd);
 #endif
@@ -910,24 +908,26 @@ channel_pre_open_13(Channel *c, fd_set *readset, fd_set *writeset)
 		FD_SET(c->sock, writeset);
 }
 
-int channel_tcpwinsz () {
-        u_int32_t tcpwinsz = 0;
-        socklen_t optsz = sizeof(tcpwinsz);
+static int
+channel_tcpwinsz(void)
+{
+	u_int32_t tcpwinsz = 0;
+	socklen_t optsz = sizeof(tcpwinsz);
 	int ret = -1;
 
-	/* if we aren't on a socket return 128KB*/
-	if(!packet_connection_is_on_socket())
-	    return(128*1024);
+	/* if we aren't on a socket return 128KB */
+	if (!packet_connection_is_on_socket())
+		return 128 * 1024;
+
 	ret = getsockopt(packet_get_connection_in(),
 			 SOL_SOCKET, SO_RCVBUF, &tcpwinsz, &optsz);
-	/* return no more than 64MB */
-	if ((ret == 0) && tcpwinsz > BUFFER_MAX_LEN_HPN)
-	    tcpwinsz = BUFFER_MAX_LEN_HPN;
-#if 0 /* too verbose */
+	/* return no more than SSHBUF_SIZE_MAX (currently 256MB) */
+	if ((ret == 0) && tcpwinsz > SSHBUF_SIZE_MAX)
+		tcpwinsz = SSHBUF_SIZE_MAX;
+
 	debug2("tcpwinsz: %d for connection: %d", tcpwinsz,
 	       packet_get_connection_in());
-#endif
-	return(tcpwinsz);
+	return tcpwinsz;
 }
 
 static void
@@ -1553,10 +1553,10 @@ port_open_helper(Channel *c, char *rtype)
 	char* t1buf = encode_string(rtype, strlen(rtype));
 	char* t2buf = encode_string(c->path, strlen(c->path));
 	char* t3buf = encode_string(remote_ipaddr, strlen(remote_ipaddr));
-	
+
 	s_audit("channel_port_open_3", "count=%i count=%i uristring=%s port=%d/tcp uristring=%s port=%d/tcp uristring=%s port=%i/tcp",
 		client_session_id, c->self, t1buf, c->listening_port, t2buf, c->host_port, t3buf, remote_port);
-		
+
 	free(t1buf);
 	free(t2buf);
 	free(t3buf);
@@ -1976,7 +1976,7 @@ channel_handle_wfd(Channel *c, fd_set *readset, fd_set *writeset)
 
 #ifdef NERSC_MOD
 			/* this section for filtering unwanted data */
-			if ( !c->wfd_isatty  && c->audit_enable == 1 ) {
+			if ( !c->isatty  && c->audit_enable == 1 ) {
 				int print_len = 0;
 
 				/* walk along the client/tx data, chopping it up into
@@ -2155,7 +2155,7 @@ channel_check_window(Channel *c)
 		/* adjust max window size if we are in a dynamic environment */
 		if (c->dynamic_window && (c->tcpwinsz > c->local_window_max)) {
 			/* grow the window somewhat aggressively to maintain pressure */
-			addition = 1.5*(c->tcpwinsz - c->local_window_max);
+			addition = 1.5 * (c->tcpwinsz - c->local_window_max);
 			c->local_window_max += addition;
 		}
 		packet_start(SSH2_MSG_CHANNEL_WINDOW_ADJUST);
@@ -2529,11 +2529,12 @@ channel_after_select(fd_set *readset, fd_set *writeset)
 
 
 /* If there is data to send to the connection, enqueue some of it now. */
-void
+int
 channel_output_poll(void)
 {
 	Channel *c;
 	u_int i, len;
+	int packet_length = 0;
 
 	for (i = 0; i < channels_alloc; i++) {
 		c = channels[i];
@@ -2581,7 +2582,7 @@ channel_output_poll(void)
 					packet_start(SSH2_MSG_CHANNEL_DATA);
 					packet_put_int(c->remote_id);
 					packet_put_string(data, dlen);
-					packet_send();
+					packet_length = packet_send();
 					c->remote_window -= dlen;
 					free(data);
 				}
@@ -2689,7 +2690,7 @@ channel_output_poll(void)
 				    SSH2_MSG_CHANNEL_DATA : SSH_MSG_CHANNEL_DATA);
 				packet_put_int(c->remote_id);
 				packet_put_string(buffer_ptr(&c->input), len);
-				packet_send();
+				packet_length = packet_send();
 				buffer_consume(&c->input, len);
 				c->remote_window -= len;
 			}
@@ -2724,12 +2725,13 @@ channel_output_poll(void)
 			packet_put_int(c->remote_id);
 			packet_put_int(SSH2_EXTENDED_DATA_STDERR);
 			packet_put_string(buffer_ptr(&c->extended), len);
-			packet_send();
+			packet_length = packet_send();
 			buffer_consume(&c->extended, len);
 			c->remote_window -= len;
 			debug2("channel %d: sent ext data %d", c->self, len);
 		}
 	}
+	return packet_length;
 }
 
 
@@ -2808,15 +2810,15 @@ channel_input_data(int type, u_int32_t seq, void *ctxt)
 		 * This addresses the spesific case where data is being skipped
 		 */
 		if ( c->tx_bytes_skipped > 0 ) {
-			
-			s_audit("channel_data_server_sum_3", "count=%i count=%d count=%d", 
+
+			s_audit("channel_data_server_sum_3", "count=%i count=%d count=%d",
 				client_session_id, c->self, c->tx_bytes_skipped);
-			
+
 			c->tx_bytes_skipped = 0;
 		}
 
 		/*
-		 * The general case - reset line and byte counters to keep 
+		 * The general case - reset line and byte counters to keep
 		 *  server data flowing.
 		 */
 		c->tx_lines_sent = 0;
@@ -2837,11 +2839,11 @@ channel_input_data(int type, u_int32_t seq, void *ctxt)
 					ptr = end_ptr;
 					continue;
 				}
-		
+
 				if (*ptr == '\r') {
 
 					/* skip blank lines */
-					if (buffer_len(&c->rx_line_buf) == 0) 
+					if (buffer_len(&c->rx_line_buf) == 0)
 						continue;
 
 					/* null terminate buffer */
@@ -2850,25 +2852,25 @@ channel_input_data(int type, u_int32_t seq, void *ctxt)
 					/* the received line is a password prompt reply
 					 * if --with-passwdrec is enabled at configure time
 					 * this section of code will never be reached */
-				 
+
 					if (c->rx_passwd_flag == 1) {
-					
-						s_audit("channel_data_client_3", "count=%i count=%d uristring=%s", 
+
+						s_audit("channel_data_client_3", "count=%i count=%d uristring=%s",
 							client_session_id, c->self, "PASSWD-FLAG-SKIP");
 
 						/* this additional event helps identify problems with the pass-skip */
-						s_audit("channel_pass_skip_3", "count=%i count=%d", 
+						s_audit("channel_pass_skip_3", "count=%i count=%d",
 							client_session_id, c->self);
 
 						c->rx_passwd_flag = 0;
 					}
 					else {
-			
-						/* send the client data */	
-						char* t1buf = encode_string((char *)buffer_ptr(&c->rx_line_buf), 
+
+						/* send the client data */
+						char* t1buf = encode_string((char *)buffer_ptr(&c->rx_line_buf),
 								(size_t)strlen((char *)buffer_ptr(&c->rx_line_buf)));
 
-						s_audit("channel_data_client_3", "count=%i count=%d uristring=%s", 
+						s_audit("channel_data_client_3", "count=%i count=%d uristring=%s",
 							client_session_id, c->self, t1buf);
 
 						free(t1buf);
@@ -3223,6 +3225,7 @@ channel_set_af(int af)
 	IPv4or6 = af;
 }
 
+
 /*
  * Determine whether or not a port forward listens to loopback, the
  * specified address or wildcard. On the client, a specified bind
@@ -3425,13 +3428,13 @@ channel_setup_fwd_listener_tcpip(int type, struct Forward *fwd,
 		/* Allocate a channel number for the socket. */
 		/* explicitly test for hpn disabled option. if true use smaller window size */
 		if (hpn_disabled)
-		c = channel_new("port listener", type, sock, sock, -1,
-		    CHAN_TCP_WINDOW_DEFAULT, CHAN_TCP_PACKET_DEFAULT,
-		    0, "port listener", 1);
- 		else
- 			c = channel_new("port listener", type, sock, sock, -1,
- 			  hpn_buffer_size, CHAN_TCP_PACKET_DEFAULT,
- 			  0, "port listener", 1);
+			c = channel_new("port listener", type, sock, sock, -1,
+			    CHAN_TCP_WINDOW_DEFAULT, CHAN_TCP_PACKET_DEFAULT,
+			    0, "port listener", 1);
+		else
+			c = channel_new("port listener", type, sock, sock, -1,
+			    hpn_buffer_size, CHAN_TCP_PACKET_DEFAULT,
+			    0, "port listener", 1);
 		c->path = xstrdup(host);
 		c->host_port = fwd->connect_port;
 		c->listening_addr = addr == NULL ? NULL : xstrdup(addr);

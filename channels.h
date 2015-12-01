@@ -105,7 +105,7 @@ struct Channel {
 	int     sock;		/* sock fd */
 	int     ctl_chan;	/* control channel (multiplexed connections) */
 	int     isatty;		/* rfd is a tty */
-#if defined(_AIX) || defined(NERSC_MOD)
+#ifdef _AIX
 	int     wfd_isatty;	/* wfd is a tty */
 #endif
 	int	client_tty;	/* (client) TTY has been requested */
@@ -191,11 +191,9 @@ struct Channel {
 
 /* default window/packet sizes for tcp/x11-fwd-channel */
 #define CHAN_SES_PACKET_DEFAULT	(32*1024)
-#define CHAN_SES_WINDOW_DEFAULT	(4*CHAN_SES_PACKET_DEFAULT)
-
+#define CHAN_SES_WINDOW_DEFAULT	(64*CHAN_SES_PACKET_DEFAULT)
 #define CHAN_TCP_PACKET_DEFAULT	(32*1024)
-#define CHAN_TCP_WINDOW_DEFAULT	(4*CHAN_TCP_PACKET_DEFAULT)
-
+#define CHAN_TCP_WINDOW_DEFAULT	(64*CHAN_TCP_PACKET_DEFAULT)
 #define CHAN_X11_PACKET_DEFAULT	(16*1024)
 #define CHAN_X11_WINDOW_DEFAULT	(4*CHAN_X11_PACKET_DEFAULT)
 
@@ -270,7 +268,7 @@ int	 channel_input_status_confirm(int, u_int32_t, void *);
 void	 channel_prepare_select(fd_set **, fd_set **, int *, u_int*,
 	     time_t*, int);
 void     channel_after_select(fd_set *, fd_set *);
-void     channel_output_poll(void);
+int      channel_output_poll(void);
 
 int      channel_not_very_much_buffered_data(void);
 void     channel_close_all(void);

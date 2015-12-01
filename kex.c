@@ -53,9 +53,13 @@
 
 #include "ssherr.h"
 #include "sshbuf.h"
+#include "canohost.h"
 #include "digest.h"
 
-#include "canohost.h"
+#ifdef NERSC_MOD
+#include "nersc.h"
+extern int client_session_id;
+#endif
 
 #ifdef GSSAPI
 #include "ssh-gss.h"
@@ -682,7 +686,7 @@ kex_choose_conf(struct ssh *ssh)
 	int log_flag = 0;
 	int auth_flag;
 
-	auth_flag = ssh_packet_authentication_state(ssh);
+	auth_flag = packet_authentication_state(ssh);
 	debug ("AUTH STATE IS %d", auth_flag);
 
 	if ((r = kex_buf2prop(kex->my, NULL, &my)) != 0 ||
@@ -741,20 +745,47 @@ kex_choose_conf(struct ssh *ssh)
 			peer[ncomp] = NULL;
 			goto out;
 		}
-        debug("REQUESTED ENC.NAME is '%s'", newkeys->enc.name);
-        if (strcmp(newkeys->enc.name, "none") == 0) {
-            debug("Requesting NONE. Authflag is %d", auth_flag);
-            if (auth_flag == 1) {
-                debug("None requested post authentication.");
-            } else {
-                fatal("Pre-authentication none cipher requests are not allowed.");
-            }
-        }
+		debug("REQUESTED ENC.NAME is '%s'", newkeys->enc.name);
+		if (strcmp(newkeys->enc.name, "none") == 0) {
+			debug("Requesting NONE. Authflag is %d", auth_flag);
+			if (auth_flag == 1)
+				debug("None requested post authentication.");
+			else
+				fatal("Pre-authentication none cipher requests are not allowed.");
+		}
 		debug("kex: %s %s %s %s",
 		    ctos ? "client->server" : "server->client",
 		    newkeys->enc.name,
 		    authlen == 0 ? newkeys->mac.name : "<implicit>",
 		    newkeys->comp.name);
+
+#ifdef NERSC_MOD
+		if ( ctos ) {
+
+                        const char def_enc_name[] = "<implicit>";
+                        const char def_mac_name[] = "<implicit>";
+                        const char def_comp_name[] = "<implicit>";
+                        const char def_vers_string[] = "<implicit>";
+
+                        char* t1buf = ((authlen != 0 || !newkeys->enc.name) ? (encode_string(def_enc_name, sizeof(def_enc_name)-1)) : (encode_string(newkeys->enc.name, strlen(newkeys->enc.name))));
+                        char* t2buf = ((authlen != 0 || !newkeys->mac.name) ? (encode_string(def_mac_name, sizeof(def_mac_name)-1)) : (encode_string(newkeys->mac.name, strlen(newkeys->mac.name))));
+                        char* t3buf = ((authlen != 0 || !newkeys->comp.name) ? (encode_string(def_comp_name, sizeof(def_comp_name)-1)) : (encode_string(newkeys->comp.name, strlen(newkeys->comp.name))));
+
+			/* t4buf is not derived from authlen directly, but in  */
+			/*  the event that that value is borked, play it safe  */
+			/*  and bail on this as well cause paranoid ...        */
+                        char* t4buf = ((authlen != 0 || !kex->client_version_string) ? (encode_string(def_vers_string, sizeof(def_vers_string)-1)) : (encode_string(kex->client_version_string, strlen(kex->client_version_string))));
+
+			s_audit("session_key_exchange", "count=%i uristring=%s_%s_%s_%s",
+			client_session_id, t4buf, t1buf, t2buf, t3buf);
+
+			free(t1buf);
+			free(t2buf);
+			free(t3buf);
+			free(t4buf);
+			}
+#endif
+
 		/* client starts withctos = 0 && log flag = 0 and no log*/
 		/* 2nd client pass ctos=1 and flag = 1 so no log*/
 		/* server starts with ctos =1 && log_flag = 0 so log */
@@ -762,11 +793,11 @@ kex_choose_conf(struct ssh *ssh)
 		/* -cjr*/
 		if (ctos && !log_flag) {
 			logit("SSH: Server;Ltype: Kex;Remote: %s-%d;Enc: %s;MAC: %s;Comp: %s",
-			      get_remote_ipaddr(),
-			      get_remote_port(),
-			      newkeys->enc.name,
-			      newkeys->mac.name,
-			      newkeys->comp.name);
+			    ssh_get_remote_ipaddr(ssh),
+			    ssh_get_remote_port(ssh),
+			    newkeys->enc.name,
+			    authlen == 0 ? newkeys->mac.name : "<implicit>",
+			    newkeys->comp.name);
 		}
 		log_flag = 1;
 	}

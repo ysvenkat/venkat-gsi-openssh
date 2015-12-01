@@ -27,6 +27,7 @@
 #ifdef GSSAPI
 
 #include <string.h>
+#include <signal.h>
 
 #include <openssl/crypto.h>
 #include <openssl/bn.h>

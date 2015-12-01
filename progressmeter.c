@@ -139,7 +139,7 @@ refresh_progress_meter(void)
 	bytes_left = end_pos - cur_pos;
 
 	delta_pos = cur_pos - last_pos;
-	if (delta_pos > max_delta_pos) 
+	if (delta_pos > max_delta_pos)
 		max_delta_pos = delta_pos;
 
 	if (bytes_left > 0)
@@ -184,7 +184,7 @@ refresh_progress_meter(void)
 	else
 		percent = 100;
 
-	snprintf(buf + strlen(buf), win_size - strlen(buf-8),
+	snprintf(buf + strlen(buf), win_size - strlen(buf),
 	    " %3d%% ", percent);
 
 	/* amount transferred */

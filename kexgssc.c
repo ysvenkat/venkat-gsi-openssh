@@ -32,6 +32,7 @@
 #include <openssl/bn.h>
 
 #include <string.h>
+#include <signal.h>
 
 #include "xmalloc.h"
 #include "buffer.h"
